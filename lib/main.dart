@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:oxlauncher/model/model.dart';
 import 'package:oxlauncher/providers/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:oxlauncher/storage/launcher_storage.dart';
 import 'package:oxlauncher/widgets/app_grid.dart';
 import 'package:oxlauncher/widgets/dock.dart';
 
@@ -55,15 +57,13 @@ class OxygenLauncher extends ConsumerWidget {
                           child: AppGrid(
                             items: currentScreen.items,
                             onReorder: (newItems) async {
-                              print('_reordered ${newItems.length} items');
-                              // Optional: save to disk
-                              // final updatedState = LauncherState(
-                              //   screens: [LauncherScreen(items: newItems)],
-                              //   dockApps: state.dockApps,
-                              // );
-                              // await LauncherStorage.saveState(updatedState);
-                              // Optional: refresh UI (if you later add more screens or need sync)
-                              // ref.refresh(launcherStateProvider);
+                              // Save to disk
+                              final updatedState = LauncherState(
+                                screens: [LauncherScreen(items: newItems)],
+                                dockApps: state.dockApps,
+                              );
+                              await LauncherStorage.saveState(updatedState);
+                              ref.refresh(launcherStateProvider);
                             },
                           ),
                         ),

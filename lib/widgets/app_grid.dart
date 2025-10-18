@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:oxlauncher/model/model.dart';
 import 'package:oxlauncher/storage/launcher_storage.dart';
 import 'package:oxlauncher/utils/constants.dart';
+import 'package:oxlauncher/utils/grid_utils.dart';
 import 'package:oxlauncher/widgets/app_tile.dart';
 import 'package:oxlauncher/widgets/context_menu.dart';
 
@@ -32,6 +33,7 @@ class _AppGridState extends State<AppGrid> {
   OverlayEntry? menuOverlayEntry;
   OverlayEntry? menuBarrierEntry;
   Application? _tappedApp;
+  Point<int>? _dropTarget;
 
   // Cache icon positions to avoid re-computation
   Map<String, Offset> _iconPositions = {};
@@ -66,7 +68,13 @@ class _AppGridState extends State<AppGrid> {
     _iconPositions = positions;
   }
 
-  Rect? _getIconBoundsFromPosition(Offset globalPosition, Size gridSize) {
+  Point<int> _getCellFromLocalPosition(Offset localPosition, Size gridSize) {
+    final col = (localPosition.dx / gridSize.width * kNumCols).floor().clamp(0, kNumCols - 1);
+    final row = (localPosition.dy / gridSize.height * kNumRows).floor().clamp(0, kNumRows - 1);
+    return Point(row, col);
+  }
+
+  Rect? _getIconBoundsByPosition(Offset globalPosition, Size gridSize) {
     // Convert global → local
     final localPos = globalPosition;
     final col = (localPos.dx / gridSize.width * kNumCols).floor().clamp(0, kNumCols - 1);
@@ -83,13 +91,7 @@ class _AppGridState extends State<AppGrid> {
     );
   }
 
-  Point<int> _getCellFromLocalPosition(Offset localPosition, Size gridSize) {
-    final col = (localPosition.dx / gridSize.width * kNumCols).floor().clamp(0, kNumCols - 1);
-    final row = (localPosition.dy / gridSize.height * kNumRows).floor().clamp(0, kNumRows - 1);
-    return Point(row, col);
-  }
-
-  Rect _getIconOnlyBounds(Application app, Size fullSize) {
+  Rect _getIconBoundsByApplication(Application app, Size fullSize) {
     final position = _iconPositions[app.name];
     if (position == null) {
       // Fallback
@@ -134,21 +136,21 @@ class _AppGridState extends State<AppGrid> {
     final localPosition = globalPosition - gridGlobalOrigin;
 
     // Compute icon bounds in grid-local coordinates
-    final iconBoundsLocal = _getIconBoundsFromPosition(localPosition, fullSize);
+    final iconBoundsLocal = _getIconBoundsByPosition(localPosition, fullSize);
     if (iconBoundsLocal == null) return;
 
     // Convert icon bounds to global coordinates for Overlay
-    final iconOnlyLocal = _getIconOnlyBounds(app, fullSize);
-    final iconOnlyGlobal = Rect.fromLTWH(
-      gridGlobalOrigin.dx + iconOnlyLocal.left,
-      gridGlobalOrigin.dy + iconOnlyLocal.top,
-      iconOnlyLocal.width,
-      iconOnlyLocal.height,
+    final iconBounds = _getIconBoundsByApplication(app, fullSize);
+    final iconGlobalBounds = Rect.fromLTWH(
+      gridGlobalOrigin.dx + iconBounds.left,
+      gridGlobalOrigin.dy + iconBounds.top,
+      iconBounds.width,
+      iconBounds.height,
     );
 
     menuOverlayEntry = OverlayEntry(
       builder: (context) => ContextMenu(
-        iconBounds: iconOnlyGlobal,
+        iconBounds: iconGlobalBounds,
         onRemove: () => _handleMenuAction('remove'),
         onInfo: () => _handleMenuAction('info'),
       ),
@@ -180,10 +182,12 @@ class _AppGridState extends State<AppGrid> {
     });
   }
 
-  void _updateDragPosition(Offset position) {
+  void _updateDragPosition(Offset position, Size gridSize) {
     if (!isDragging) return;
+    final cell = _getCellFromLocalPosition(position, gridSize);
     setState(() {
       dragPosition = position;
+      _dropTarget = cell;
     });
   }
 
@@ -240,6 +244,7 @@ class _AppGridState extends State<AppGrid> {
       originalPosition = null;
       isDragging = false;
       _tappedApp = null;
+      _dropTarget = null;
     });
   }
 
@@ -265,7 +270,7 @@ class _AppGridState extends State<AppGrid> {
             if (menuOverlayEntry != null && !isDragging) {
               _startDrag(event.position);
             } else if (isDragging) {
-              _updateDragPosition(event.position);
+              _updateDragPosition(event.position, gridSize);
             }
           },
           onPointerUp: (event) {
@@ -320,6 +325,15 @@ class _AppGridState extends State<AppGrid> {
     final tileWidth = gridSize.width / kNumCols;
     final tileHeight = gridSize.height / kNumRows;
 
+    // Check if this icon is the drop target
+    final item = currentItems.firstWhere((i) => i.app.name == app.name,
+      orElse: () => throw StateError('App not found in grid'),
+    );
+    final isDropTarget = _dropTarget != null &&
+        _dropTarget!.x == item.row &&
+        _dropTarget!.y == item.col;
+    final iconBounds = withPadding(_getIconBoundsByApplication(app, gridSize), 4);
+
     return Positioned(
       left: position.dx - tileWidth / 2,
       top: position.dy - tileHeight / 2,
@@ -356,16 +370,37 @@ class _AppGridState extends State<AppGrid> {
         child: SizedBox(
           width: tileWidth,
           height: tileHeight,
-          child: AnimatedScale(
-            scale: _tappedApp?.name == app.name ? kIconPressedScale : (draggedApp?.name == app.name && isDragging ? iconScale : 1.0),
-            duration: const Duration(milliseconds: 100),
-            curve: Curves.easeInOut,
-            child: AppTile(
-              app: app,
-              tileSize: Size(tileWidth, tileHeight),
-              scale: app.name == draggedApp?.name ? iconScale : 1.0,
-              showLabel: true,
-            ),
+
+          child: Stack(
+            children: [
+              // Highlight (only icon area)
+              if (isDropTarget)
+                Positioned(
+                  left: iconBounds.left - (position.dx - tileWidth / 2),
+                  top: iconBounds.top - (position.dy - tileHeight / 2),
+                  child: Container(
+                    width: iconBounds.width,
+                    height: iconBounds.height,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              // AppTile
+              Center(
+                child: AnimatedScale(
+                  scale: _tappedApp?.name == app.name ? 0.95 : 1.0,
+                  duration: const Duration(milliseconds: 100),
+                  curve: Curves.easeInOut,
+                  child: AppTile(
+                    app: app,
+                    tileSize: Size(tileWidth, tileHeight),
+                    showLabel: true,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

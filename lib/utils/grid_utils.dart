@@ -34,3 +34,8 @@ class GridMetrics {
     return Point(row, col);
   }
 }
+
+
+Rect withPadding(Rect r, int padding) {
+  return Rect.fromLTRB(r.left-padding, r.top-padding, r.right+padding, r.bottom+padding);
+}
