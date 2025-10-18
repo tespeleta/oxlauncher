@@ -31,7 +31,7 @@ class _AppGridState extends State<AppGrid> {
   bool isDragging = false;
   OverlayEntry? menuOverlayEntry;
   OverlayEntry? menuBarrierEntry;
-  Application? _temporaryPressedApp;
+  Application? _tappedApp;
 
   // Cache icon positions to avoid re-computation
   Map<String, Offset> _iconPositions = {};
@@ -164,13 +164,6 @@ class _AppGridState extends State<AppGrid> {
     });
   }
 
-  void _cleanupMenu() {
-    menuBarrierEntry?.remove();
-    menuBarrierEntry = null;
-    menuOverlayEntry?.remove();
-    menuOverlayEntry = null;
-  }
-
   void _handleMenuAction(String action) {
     _cleanupMenu();
     // TODO
@@ -240,12 +233,21 @@ class _AppGridState extends State<AppGrid> {
   }
 
   void _cleanup() {
+    _cleanupMenu();
     setState(() {
       draggedApp = null;
       dragPosition = null;
       originalPosition = null;
       isDragging = false;
+      _tappedApp = null;
     });
+  }
+
+  void _cleanupMenu() {
+    menuBarrierEntry?.remove();
+    menuBarrierEntry = null;
+    menuOverlayEntry?.remove();
+    menuOverlayEntry = null;
   }
 
   @override
@@ -325,21 +327,29 @@ class _AppGridState extends State<AppGrid> {
         onTapDown: (_) {
           if (!isDragging && menuOverlayEntry == null) {
             setState(() {
-              _temporaryPressedApp = app;
+              _tappedApp = app;
             });
           }
         },
         onTapUp: (_) {
-          if (_temporaryPressedApp == app) {
+          if (_tappedApp == app) {
             setState(() {
-              _temporaryPressedApp = null;
+              _tappedApp = null;
             });
             // TODO: launch app
           }
         },
+        onPanStart: (_) {
+          // Cancel tap feedback — this is a drag gesture
+          if (_tappedApp == app) {
+            setState(() {
+              _tappedApp = null;
+            });
+          }
+        },
         onLongPressStart: (details) {
           setState(() {
-            _temporaryPressedApp = null; // cancel any tap feedback
+            _tappedApp = null; // cancel any tap feedback
           });
           _showContextMenu(app, details.globalPosition, gridSize);
         },
@@ -347,7 +357,7 @@ class _AppGridState extends State<AppGrid> {
           width: tileWidth,
           height: tileHeight,
           child: AnimatedScale(
-            scale: _temporaryPressedApp?.name == app.name ? kIconPressedScale : (draggedApp?.name == app.name && isDragging ? iconScale : 1.0),
+            scale: _tappedApp?.name == app.name ? kIconPressedScale : (draggedApp?.name == app.name && isDragging ? iconScale : 1.0),
             duration: const Duration(milliseconds: 100),
             curve: Curves.easeInOut,
             child: AppTile(
