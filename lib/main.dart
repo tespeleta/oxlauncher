@@ -1,13 +1,18 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:oxlauncher/model/model.dart';
 import 'package:oxlauncher/providers/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:oxlauncher/utils/grid_utils.dart';
+import 'package:oxlauncher/widgets/context_menu.dart';
 import 'package:oxlauncher/storage/launcher_storage.dart';
 
 void main() => runApp(const ProviderScope(child: OxygenLauncher()));
 
 const int kNumRows = 5;
 const int kNumCols = 5;
+const double kIconScale = 0.125;
 
 class OxygenLauncher extends ConsumerWidget {
   const OxygenLauncher({super.key});
@@ -41,9 +46,9 @@ class OxygenLauncher extends ConsumerWidget {
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [
-                            Colors.black.withOpacity(0.1),
+                            Colors.black.withValues(alpha: 0.1),
                             Colors.transparent,
-                            Colors.black.withOpacity(0.2),
+                            Colors.black.withValues(alpha: 0.2),
                           ],
                           stops: const [0.0, 0.7, 1.0],
                         ),
@@ -69,10 +74,6 @@ class OxygenLauncher extends ConsumerWidget {
                               // ref.refresh(launcherStateProvider);
                             },
                           ),
-                          onTapDown: (details) {
-                            print('TAP DROP: ${details.globalPosition}');
-                            // Use this to test your cell math
-                          },
                         ),
                       ),
                       // Dock
@@ -93,37 +94,45 @@ class OxygenLauncher extends ConsumerWidget {
 class _AppTile extends StatelessWidget {
   final Application app;
   final bool showLabel;
+  final double scale; // ← new
 
-  const _AppTile({required this.app, this.showLabel = true});
+  const _AppTile({
+    required this.app,
+    this.showLabel = true,
+    this.scale = 1.0, // default: full size
+  });
 
   @override
   Widget build(BuildContext context) {
-    final iconSize = MediaQuery.sizeOf(context).shortestSide * 0.125;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Container(
-          width: iconSize,
-          height: iconSize,
-          color: Colors.transparent,
-          child: Image.asset(
-            'assets/images/iconpack-pixel/${app.iconPath}',
-            fit: BoxFit.cover,
-          ),
-        ),
-        if (showLabel) const SizedBox(height: 4),
-        if (showLabel)
-          Flexible(
-            child: Text(
-              app.name,
-              style: const TextStyle(fontSize: 11, color: Colors.white),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+    final iconSize = MediaQuery.sizeOf(context).shortestSide * kIconScale * scale;
+    return Transform.scale(
+      scale: scale,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: iconSize,
+            height: iconSize,
+            color: Colors.transparent,
+            child: Image.asset(
+              'assets/images/iconpack-pixel/${app.iconPath}',
+              fit: BoxFit.cover,
             ),
           ),
-      ],
+          if (showLabel) const SizedBox(height: 4),
+          if (showLabel)
+            Flexible(
+              child: Text(
+                app.name,
+                style: const TextStyle(fontSize: 11, color: Colors.white),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -146,132 +155,165 @@ class _AppGridState extends State<_AppGrid> {
   late List<ScreenItem> currentItems;
   Application? _draggedApp;
   final _dragPosition = ValueNotifier<Offset?>(null);
-  OverlayState? _overlayState;
-  OverlayEntry? _overlayEntry;
+  OverlayEntry? _menuOverlayEntry;
+  OverlayEntry? _dragOverlayEntry;
+  bool _isDragging = false;
+  double _iconScale = 1.0;
 
   @override
   void initState() {
-    print('[_AppGridState INIT] this: $hashCode');
     super.initState();
     currentItems = widget.items;
   }
 
   @override
   void dispose() {
-    _overlayEntry?.remove();
+    _menuOverlayEntry?.remove();
+    _dragOverlayEntry?.remove();
     _dragPosition.dispose();
     super.dispose();
   }
-  void _startDrag(Application app, Offset globalPosition) {
-    _draggedApp = app;
-    _dragPosition.value = globalPosition; // ✅ set initial position
-    _overlayState = Overlay.of(context);
-    _overlayEntry = OverlayEntry(
-      builder: (context) => _buildDragPreview(),
-    );
-    _overlayState?.insert(_overlayEntry!);
-  }
 
-  Widget _buildDragPreview() {
-    if (_draggedApp == null) {
-      return const SizedBox();
+void _showContextMenu(Application app, Offset globalPosition) {
+  _draggedApp = app;
+  setState(() { _iconScale = 0.8; });
+
+  final iconBounds = _getIconBoundsFromPosition(globalPosition);
+  if (iconBounds == null) return;
+
+  _menuOverlayEntry = OverlayEntry(
+    builder: (context) => ContextMenu(
+      iconBounds: iconBounds, // pass bounds instead of position
+      onRemove: () => _handleMenuAction('remove'),
+      onInfo: () => _handleMenuAction('info'),
+    ),
+  );
+  Overlay.of(context).insert(_menuOverlayEntry!);
+
+  Future.delayed(const Duration(milliseconds: 100), () {
+    if (!_isDragging) {
+      setState(() { _iconScale = 1.0; });
     }
-    return ValueListenableBuilder<Offset?>(
-      valueListenable: _dragPosition,
-      builder: (context, position, child) {
-        if (position == null || _draggedApp == null) return const SizedBox();
-        return Positioned(
-          left: position.dx - 24,
-          top: position.dy - 24,
-          child: Material(
-            elevation: 8,
-            borderRadius: BorderRadius.circular(16),
+  });
+}
+
+  void _startDrag(Offset initialPosition) {
+    if (_isDragging) return;
+
+    _isDragging = true;
+    _menuOverlayEntry?.remove();
+    _menuOverlayEntry = null;
+    setState(() { _iconScale = 1.0; });
+
+    _dragPosition.value = initialPosition;
+    _dragOverlayEntry = OverlayEntry(
+      builder: (context) => ValueListenableBuilder<Offset?>(
+        valueListenable: _dragPosition,
+        builder: (context, position, child) {
+          if (position == null || _draggedApp == null) return const SizedBox();
+          final iconSize = MediaQuery.sizeOf(context).shortestSide * kIconScale * 1.2;
+          return Positioned(
+            left: position.dx - iconSize / 2,
+            top: position.dy - iconSize / 2,
             child: Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.9),
-                borderRadius: BorderRadius.circular(16),
-              ),
+              width: iconSize,
+              height: iconSize,
+              color: Colors.transparent,
               child: Image.asset(
                 'assets/images/iconpack-pixel/${_draggedApp!.iconPath}',
                 fit: BoxFit.cover,
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
+    Overlay.of(context).insert(_dragOverlayEntry!);
   }
 
-  void _updateDragPosition(Offset position) {
-    _dragPosition.value = position; // triggers overlay rebuild
+  void _handleMenuAction(String action) {
+    _cleanup();
+    // TODO: implement action
+    print('Menu action: $action');
   }
 
   void _endDrag(Offset dropPosition) {
-    _overlayEntry?.remove();
-    _overlayEntry = null;
+    _cleanup();
+    final cell = _getCellFromGlobalPosition(dropPosition);
+    print('DROPPED at → row: ${cell.x}, col: ${cell.y}');
+    // TODO: reorder logic using cell.x, cell.y
+  }
 
-    // Compute drop cell
+  Point<int> _getCellFromGlobalPosition(Offset globalPosition) {
     final gridContext = _gridKey.currentContext;
-    if (gridContext == null) {
-      setState(() { _draggedApp = null; });
-      return;
-    }
+    if (gridContext == null) return const Point(0, 0);
 
     final gridBox = gridContext.findRenderObject() as RenderBox;
+    if (!gridBox.hasSize) return const Point(0, 0);
+
     final gridRect = gridBox.localToGlobal(Offset.zero) & gridBox.size;
-    final localX = dropPosition.dx - gridRect.left;
-    final localY = dropPosition.dy - gridRect.top;
+    final localPos = globalPosition - gridRect.topLeft;
 
-    int closestCol = 0;
-    double minDx = double.infinity;
-    for (int col = 0; col < kNumCols; col++) {
-      final centerX = gridRect.width * (2 * col + 1) / (2 * kNumCols);
-      final dx = (localX - centerX).abs();
-      if (dx < minDx) {
-        minDx = dx;
-        closestCol = col;
-      }
-    }
+    final metrics = GridMetrics(
+      gridSize: gridRect.size,
+      numRows: kNumRows,
+      numCols: kNumCols,
+    );
+    return metrics.getCellFromPosition(localPos);
+  }
 
-    int closestRow = 0;
-    double minDy = double.infinity;
-    for (int row = 0; row < kNumRows; row++) {
-      final centerY = gridRect.height * (2 * row + 1) / (2 * kNumRows);
-      final dy = (localY - centerY).abs();
-      if (dy < minDy) {
-        minDy = dy;
-        closestRow = row;
-      }
-    }
+  Rect? _getIconBoundsFromPosition(Offset globalPosition) {
+    final gridContext = _gridKey.currentContext;
+    if (gridContext == null) return null;
 
-    print('DROPPED at → row: $closestRow, col: $closestCol');
+    final gridBox = gridContext.findRenderObject() as RenderBox;
+    if (!gridBox.hasSize) return null;
 
-    // TODO: reorder logic
-    // For now: just print
+    final gridRect = gridBox.localToGlobal(Offset.zero) & gridBox.size;
+    final localPos = globalPosition - gridRect.topLeft;
 
-    setState(() {
-      _draggedApp = null;
-      _dragPosition = null;
-    });
+    // Get cell
+    final col = (localPos.dx / gridRect.width * kNumCols).floor().clamp(0, kNumCols - 1);
+    final row = (localPos.dy / gridRect.height * kNumRows).floor().clamp(0, kNumRows - 1);
+
+    // Recreate icon bounds (must match your layout)
+    final itemWidth = gridRect.width / kNumCols;
+    final itemHeight = gridRect.height / kNumRows;
+    final centerX = gridRect.width * (2 * col + 1) / (2 * kNumCols);
+    final centerY = gridRect.height * (2 * row + 1) / (2 * kNumRows);
+
+    final iconSize = itemWidth * 0.8; // adjust to match your visual icon size
+    return Rect.fromCenter(
+      center: Offset(gridRect.left + centerX, gridRect.top + centerY),
+      width: iconSize,
+      height: iconSize,
+    );
+  }
+
+  void _cleanup() {
+    _menuOverlayEntry?.remove();
+    _menuOverlayEntry = null;
+    _dragOverlayEntry?.remove();
+    _dragOverlayEntry = null;
+    _draggedApp = null;
+    _isDragging = false;
   }
 
   @override
   Widget build(BuildContext context) {
     return Listener(
       onPointerMove: (event) {
-        print('(PointerMove) event.position: ${event.position}');
-        if (_draggedApp != null) {
-          print('→ Calling _updateDragPosition');
-          _updateDragPosition(event.position);
+        if (_menuOverlayEntry != null && !_isDragging) {
+          _startDrag(event.position);
+        } else if (_isDragging) {
+          _dragPosition.value = event.position;
         }
       },
       onPointerUp: (event) {
-        print('(PointerUp) event.position: ${event.position}');
-        if (_draggedApp != null) {
+        if (_isDragging) {
           _endDrag(event.position);
         }
+        _cleanup();
       },
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -289,12 +331,12 @@ class _AppGridState extends State<_AppGrid> {
                   }
                   return GestureDetector(
                     onLongPressStart: (details) {
-                      _startDrag(app, details.globalPosition);
+                      _showContextMenu(app, details.globalPosition);
                     },
                     child: SizedBox(
                       width: itemSize,
-                      child: Opacity(
-                        opacity: _draggedApp?.name == app.name ? 0.5 : 1.0,
+                      child: Transform.scale(
+                        scale: _draggedApp?.name == app.name ? _iconScale : 1.0,
                         child: _AppTile(app: app),
                       ),
                     ),
