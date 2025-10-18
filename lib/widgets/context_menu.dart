@@ -4,12 +4,14 @@ class ContextMenu extends StatelessWidget {
   final Rect iconBounds;
   final VoidCallback onRemove;
   final VoidCallback onInfo;
+  final double opacity;
 
   const ContextMenu({
     super.key,
     required this.iconBounds,
     required this.onRemove,
     required this.onInfo,
+    this.opacity = 1.0,
   });
 
   @override
@@ -40,31 +42,36 @@ class ContextMenu extends StatelessWidget {
     return Positioned(
       left: left,
       top: top,
-      child: SizedBox(
-        width: menuWidth,
-        child: Material(
-          elevation: 8,
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              color: Colors.white,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _MenuItem(
-                  icon: Icons.info_outline,
-                  label: 'App info',
-                  onTap: onInfo,
-                ),
-                _MenuItem(
-                  icon: Icons.delete_outline,
-                  label: 'Remove',
-                  onTap: onRemove,
-                ),
-              ],
+      child: AnimatedOpacity(
+        opacity: opacity,
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeInOut,
+        child: SizedBox(
+          width: menuWidth,
+          child: Material(
+            elevation: 8,
+            borderRadius: BorderRadius.circular(14),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                color: Colors.white,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _MenuItem(
+                    icon: Icons.info_outline,
+                    label: 'App info',
+                    onTap: onInfo,
+                  ),
+                  _MenuItem(
+                    icon: Icons.delete_outline,
+                    label: 'Remove',
+                    onTap: onRemove,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
