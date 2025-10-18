@@ -30,6 +30,8 @@ class _AppGridState extends State<AppGrid> {
   double iconScale = 1.0;
   bool isDragging = false;
   OverlayEntry? menuOverlayEntry;
+  OverlayEntry? menuBarrierEntry;
+  Application? _temporaryPressedApp;
 
   // Cache icon positions to avoid re-computation
   Map<String, Offset> _iconPositions = {};
@@ -43,7 +45,7 @@ class _AppGridState extends State<AppGrid> {
 
   void _updateIconPositions(Size fullSize) {
     // Add padding (e.g., 16px on each side)
-    const padding = 16.0;
+    const padding = kLateralPadding;
     final gridSize = Size(
       fullSize.width - 2 * padding,
       fullSize.height - 2 * padding,
@@ -107,6 +109,17 @@ class _AppGridState extends State<AppGrid> {
   }
 
   void _showContextMenu(Application app, Offset globalPosition, Size fullSize) {
+    _cleanupMenu();
+
+    // Add barrier
+    menuBarrierEntry = OverlayEntry(
+      builder: (context) => GestureDetector(
+        onTap: _cleanupMenu, // close on tap anywhere
+        child: Container(color: Colors.transparent),
+      ),
+    );
+    Overlay.of(context).insert(menuBarrierEntry!);
+
     draggedApp = app;
 
     // Get grid's RenderBox to compute local position
@@ -142,7 +155,7 @@ class _AppGridState extends State<AppGrid> {
     );
     Overlay.of(context).insert(menuOverlayEntry!);
 
-    setState(() { iconScale = 0.8; });
+    setState(() { iconScale = 1; });
 
     Future.delayed(const Duration(milliseconds: 100), () {
       if (!isDragging) {
@@ -151,9 +164,15 @@ class _AppGridState extends State<AppGrid> {
     });
   }
 
-  void _handleMenuAction(String action) {
+  void _cleanupMenu() {
+    menuBarrierEntry?.remove();
+    menuBarrierEntry = null;
     menuOverlayEntry?.remove();
     menuOverlayEntry = null;
+  }
+
+  void _handleMenuAction(String action) {
+    _cleanupMenu();
     // TODO
   }
 
@@ -250,13 +269,10 @@ class _AppGridState extends State<AppGrid> {
           onPointerUp: (event) {
             if (isDragging) {
               _endDrag(event.position, gridSize);
-            } else {
-              menuOverlayEntry?.remove();
-              menuOverlayEntry = null;
             }
           },
-          child: Container(
-            color: Colors.blue.withOpacity(0.5), // TOMAS
+          child: SizedBox.fromSize(
+            size: gridSize,
             child: Stack(
               key: _gridKey,
               children: [
@@ -271,22 +287,16 @@ class _AppGridState extends State<AppGrid> {
                     top: dragPosition!.dy - tileHeight / 2,
                     duration: const Duration(milliseconds: 100),
                     curve: Curves.easeOut,
-                    child: Container(
-                      width: 48,
-                      height: 48,
-                      color: Colors.red, // ← temporary: make it obvious
-                      child: Text('DRAG', style: const TextStyle(color: Colors.white)),
+                    child: SizedBox(
+                      width: tileWidth,
+                      height: tileHeight,
+                      child: AppTile(
+                        app: draggedApp!,
+                        scale: 1.05,
+                        showLabel: false, // no label during drag
+                        tileSize: Size(tileWidth, tileHeight),
+                      ),
                     ),
-                    // child: SizedBox(
-                    //   width: tileWidth,
-                    //   height: tileHeight,
-                    //   child: AppTile(
-                    //     app: draggedApp!,
-                    //     scale: 1.1,
-                    //     showLabel: false, // no label during drag
-                    //     tileSize: Size(tileWidth, tileHeight),
-                    //   ),
-                    // ),
                   ),
               ],
             ),
@@ -312,23 +322,39 @@ class _AppGridState extends State<AppGrid> {
       left: position.dx - tileWidth / 2,
       top: position.dy - tileHeight / 2,
       child: GestureDetector(
-        onLongPressStart: (details) =>
-            _showContextMenu(app, details.globalPosition, gridSize),
-        child: Container(
-          color: Colors.green.withOpacity(0.4), // TOMAS
-          child: SizedBox(
-            width: tileWidth,
-            height: tileHeight,
-            child: AnimatedScale(
+        onTapDown: (_) {
+          if (!isDragging && menuOverlayEntry == null) {
+            setState(() {
+              _temporaryPressedApp = app;
+            });
+          }
+        },
+        onTapUp: (_) {
+          if (_temporaryPressedApp == app) {
+            setState(() {
+              _temporaryPressedApp = null;
+            });
+            // TODO: launch app
+          }
+        },
+        onLongPressStart: (details) {
+          setState(() {
+            _temporaryPressedApp = null; // cancel any tap feedback
+          });
+          _showContextMenu(app, details.globalPosition, gridSize);
+        },
+        child: SizedBox(
+          width: tileWidth,
+          height: tileHeight,
+          child: AnimatedScale(
+            scale: _temporaryPressedApp?.name == app.name ? kIconPressedScale : (draggedApp?.name == app.name && isDragging ? iconScale : 1.0),
+            duration: const Duration(milliseconds: 100),
+            curve: Curves.easeInOut,
+            child: AppTile(
+              app: app,
+              tileSize: Size(tileWidth, tileHeight),
               scale: app.name == draggedApp?.name ? iconScale : 1.0,
-              duration: const Duration(milliseconds: 100),
-              curve: Curves.easeInOut,
-              child: AppTile(
-                app: app,
-                tileSize: Size(tileWidth, tileHeight),
-                scale: app.name == draggedApp?.name ? iconScale : 1.0,
-                showLabel: true,
-              ),
+              showLabel: true,
             ),
           ),
         ),
