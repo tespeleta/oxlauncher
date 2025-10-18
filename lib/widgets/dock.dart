@@ -12,6 +12,7 @@ class Dock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tileSize = (MediaQuery.sizeOf(context).width - 8) / 5;
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Container(
@@ -21,8 +22,8 @@ class Dock extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: dockApps.map((app) {
             return SizedBox(
-              width: (MediaQuery.sizeOf(context).width - 8) / 5,
-              child: AppTile(app: app, showLabel: false),
+              width: tileSize,
+              child: AppTile(app: app, showLabel: false, tileSize: Size(tileSize, tileSize)),
             );
           }).toList(),
         ),

@@ -30,9 +30,22 @@ class ContextMenu extends StatelessWidget {
       left = iconBounds.right - menuWidth;
     }
 
-    // If not enough space below → open above
-    if (top + menuHeight > screenHeight) {
+    // Compute space above and below
+    final spaceAbove = iconBounds.top;
+    final spaceBelow = screenHeight - iconBounds.bottom;
+    if (spaceBelow >= spaceAbove && spaceBelow >= menuHeight) {
+      // Enough space below → show below
+      top = iconBounds.bottom + 8;
+    } else if (spaceAbove >= menuHeight) {
+      // Enough space above → show above
       top = iconBounds.top - menuHeight - 8;
+    } else {
+      // Not enough space either way → show where there's more
+      if (spaceBelow > spaceAbove) {
+        top = screenHeight - menuHeight - 8; // bottom-aligned
+      } else {
+        top = 8; // top-aligned
+      }
     }
 
     // Safety clamp
