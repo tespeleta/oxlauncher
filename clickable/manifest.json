@@ -1,0 +1,15 @@
+{
+    "name": "tomatosoft.oxlauncher",
+    "description": "A beautiful android-like launcher for ubunutu touch.",
+    "architecture": "@CLICK_ARCH@",
+    "title": "Ox Launcher",
+    "hooks": {
+        "oxlauncher": {
+            "apparmor": "oxlauncher.apparmor",
+            "desktop":  "oxlauncher.desktop"
+        }
+    },
+    "version": "1.0.0",
+    "maintainer": "Tomas Espeleta <tomas.fufa@gmail.com>",
+    "framework" : "@CLICK_FRAMEWORK@"
+}

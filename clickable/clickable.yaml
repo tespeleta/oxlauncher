@@ -1,0 +1,24 @@
+clickable_minimum_required: 8.0.0
+builder: custom
+image_setup:
+  env:
+    PATH: /opt/flutter-elinux/bin:$PATH
+  run:
+    - apt-get update && apt-get install -y --force-yes clang
+    - curl -fsSL -o /flutter-elinux.zip https://codeload.github.com/sony/flutter-elinux/zip/refs/heads/main && unzip -q -d /opt /flutter-elinux.zip && mv /opt/flutter-elinux-main /opt/flutter-elinux
+    - flutter-elinux precache --elinux && chown -R 1000:1000 /opt/flutter-elinux
+build:
+  - >
+    cd ${ROOT}/.. && rm -rf build/ && F_ARCH="x64" && flutter-elinux create . --platforms elinux
+    if [ $ARCH == "arm64" ]; then
+      F_ARCH="arm64"
+      flutter-elinux build elinux --target-arch arm64 --target-compiler-triple=aarch64-linux-gnu --system-include-directories=/usr/aarch64-linux-gnu/include/c++/9/aarch64-linux-gnu
+    else
+      flutter-elinux build elinux --target-arch x64
+    fi
+    echo "Collecting compiled app to clickable install directory..."
+    rm -rf ${INSTALL_DIR}/data ${INSTALL_DIR}/lib  # remove previous flutter-elinux stuff
+    mv ./build/elinux/${F_ARCH}/release/bundle/* ${INSTALL_DIR}
+    cd ${ROOT}
+    cp -R -t ${INSTALL_DIR} oxlauncher.desktop oxlauncher.apparmor assets manifest.json
+kill: oxlauncher
