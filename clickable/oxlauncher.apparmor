@@ -1,7 +1,6 @@
 {
     "policy_groups": [
-        "webview",
-        "audio",
+        "content_exchange",
         "networking"
     ],
     "policy_version": 20.04

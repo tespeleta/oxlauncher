@@ -1,3 +1,5 @@
+
+const kAppId = "tomatosoft.oxlauncher"; // this must match the id declared in manifest.json of the clickable app
 const double kIconSize = 48;
 const int kNumRows = 5;
 const int kNumCols = 5;

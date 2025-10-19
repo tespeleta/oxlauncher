@@ -1,18 +1,19 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:oxlauncher/model/model.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:oxlauncher/utils/constants.dart';
 
 class LauncherStorage {
-  static Future<String> get _configPath async {
-    final dir = await getApplicationSupportDirectory();
-    final file = File('${dir.path}/oxlauncher/settings.json');
+
+  static Future<String> get configPath async {
+    final configDir = _getAppDataDir();
+    final file = File('$configDir/oxlauncher.json');
     await file.parent.create(recursive: true);
     return file.path;
   }
 
   static Future<LauncherState> loadState() async {
-    final path = await _configPath;
+    final path = await configPath;
     final file = File(path);
     if (!file.existsSync()) {
       final defaultState = _createDefaultState(defaultDockApps);
@@ -25,7 +26,7 @@ class LauncherStorage {
   }
 
   static Future<void> saveState(LauncherState state) async {
-    final path = await _configPath;
+    final path = await configPath;
     final data = json.encode(state.toJson());
     await File(path).writeAsString(data);
   }
@@ -66,6 +67,20 @@ String _toAppName(String imagePath) {
   return imagePath;
 }
 
+String _getAppDataDir() {
+  final xdgDataHome = Platform.environment['XDG_DATA_HOME'];
+  final home = Platform.environment['HOME'];
+
+  if (xdgDataHome != null) {
+    return '$xdgDataHome/$kAppId';
+  } else if (home != null) {
+    return '$home/.local/share/$kAppId';
+  } else {
+    // Fallback: try to get home via shell (in case env is missing)
+    // Note: This won't run synchronously, so we show a warning instead
+    return '<HOME and XDG_DATA_HOME not set — cannot determine app data dir>';
+  }
+}
 
 Application getAppAt({
   required List<ScreenItem> items,

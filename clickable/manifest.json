@@ -1,5 +1,5 @@
 {
-    "name": "oxlauncher.tomatosoft",
+    "name": "tomatosoft.oxlauncher",
     "description": "A beautiful android-like launcher for ubunutu touch.",
     "architecture": "@CLICK_ARCH@",
     "title": "Ox Launcher",
