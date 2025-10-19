@@ -9,7 +9,7 @@ image_setup:
     - flutter-elinux precache --elinux && chown -R 1000:1000 /opt/flutter-elinux
 build:
   - >
-    cd ${ROOT}/.. && rm -rf build/ && F_ARCH="x64" && flutter-elinux create .
+    cd ${ROOT}/.. && rm -rf build/ && F_ARCH="x64" && flutter-elinux create . --platforms elinux
     if [ $ARCH == "arm64" ]; then
       F_ARCH="arm64"
       flutter-elinux build elinux --target-arch arm64 --target-compiler-triple=aarch64-linux-gnu --system-include-directories=/usr/aarch64-linux-gnu/include/c++/9/aarch64-linux-gnu
