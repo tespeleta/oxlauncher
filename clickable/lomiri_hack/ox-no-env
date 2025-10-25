@@ -1,0 +1,6 @@
+#!/bin/sh
+exec env \
+  LD_LIBRARY_PATH="/usr/lib/aarch64-linux-gnu:/lib/aarch64-linux-gnu:/home/phablet/install/lib" \
+  DESKTOP_FILE_HINT="/home/phablet/.local/share/applications/tomatosoft.oxlauncher_oxlauncher_1.0.0.desktop" \
+  /opt/click.ubuntu.com/tomatosoft.oxlauncher/current/oxlauncher -b /opt/click.ubuntu.com/tomatosoft.oxlauncher/current/ -s 2.5
+
