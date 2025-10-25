@@ -249,59 +249,64 @@ class _AppGridState extends State<AppGrid> {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final gridSize = Size(constraints.maxWidth, constraints.maxHeight);
-        final tileWidth = gridSize.width / kNumCols;
-        final tileHeight = gridSize.height / kNumRows;
-        final fullSize = constraints.biggest;
-        _updateIconPositions(fullSize);
+    return AnimatedScale(
+      scale: isDragging ? 0.9 : 1,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeInOut,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final gridSize = Size(constraints.maxWidth, constraints.maxHeight);
+          final tileWidth = gridSize.width / kNumCols;
+          final tileHeight = gridSize.height / kNumRows;
+          final fullSize = constraints.biggest;
+          _updateIconPositions(fullSize);
 
-        return Listener(
-          onPointerMove: (event) {
-            if (menuOverlayEntry != null && !isDragging) {
-              _startDrag(event.position);
-            } else if (isDragging) {
-              _updateDragPosition(event.position, gridSize);
-            }
-          },
-          onPointerUp: (event) {
-            if (isDragging) {
-              _endDrag(event.position, gridSize);
-            }
-          },
-          child: SizedBox.fromSize(
-            size: gridSize,
-            child: Stack(
-              key: _gridKey,
-              children: [
-                // All icons as Positioned widgets
-                for (final item in currentItems)
-                  if (item.app != null && item.app!.name.isNotEmpty)
-                    _buildIcon(item.app!, gridSize),
-                // Draggable icon (overrides static position during drag)
-                if (dragPosition != null && draggedApp != null)
-                  AnimatedPositioned(
-                    left: dragPosition!.dx - tileWidth / 2,
-                    top: dragPosition!.dy - tileHeight / 2,
-                    duration: const Duration(milliseconds: 100),
-                    curve: Curves.easeOut,
-                    child: SizedBox(
-                      width: tileWidth,
-                      height: tileHeight,
-                      child: AppTile(
-                        app: draggedApp!,
-                        scale: 1.05,
-                        showLabel: false, // no label during drag
-                        tileSize: Size(tileWidth, tileHeight),
+          return Listener(
+            onPointerMove: (event) {
+              if (menuOverlayEntry != null && !isDragging) {
+                _startDrag(event.position);
+              } else if (isDragging) {
+                _updateDragPosition(event.position, gridSize);
+              }
+            },
+            onPointerUp: (event) {
+              if (isDragging) {
+                _endDrag(event.position, gridSize);
+              }
+            },
+            child: SizedBox.fromSize(
+              size: gridSize,
+              child: Stack(
+                key: _gridKey,
+                children: [
+                  // All icons as Positioned widgets
+                  for (final item in currentItems)
+                    if (item.app != null && item.app!.name.isNotEmpty)
+                      _buildIcon(item.app!, gridSize),
+                  // Draggable icon (overrides static position during drag)
+                  if (dragPosition != null && draggedApp != null)
+                    AnimatedPositioned(
+                      left: dragPosition!.dx - tileWidth / 2,
+                      top: dragPosition!.dy - tileHeight / 2,
+                      duration: const Duration(milliseconds: 100),
+                      curve: Curves.easeOut,
+                      child: SizedBox(
+                        width: tileWidth,
+                        height: tileHeight,
+                        child: AppTile(
+                          app: draggedApp!,
+                          scale: 1.05,
+                          showLabel: false, // no label during drag
+                          tileSize: Size(tileWidth, tileHeight),
+                        ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
