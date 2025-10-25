@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name=Ox Launcher
+#Exec=aa-exec-click -p tomatosoft.oxlauncher_oxlauncher_1.0.0 -- oxlauncher  -b . -s 2.5
+Exec=/home/phablet/ox-no-env
+#Icon=/opt/click.ubuntu.com/.click/users/phablet/tomatosoft.oxlauncher/assets/logo.svg
+Terminal=false
+Type=Application
+Hidden=true
+Path=/opt/click.ubuntu.com/.click/users/phablet/tomatosoft.oxlauncher
+X-Lomiri-Splash-Show=false
+X-Lomiri-Touch=false
+X-Lomiri-Application-ID=tomatosoft.oxlauncher_oxlauncher_1.0.0
+X-Lomiri-Source-Desktop=/opt/click.ubuntu.com/.click/users/phablet/tomatosoft.oxlauncher/oxlauncher.desktop

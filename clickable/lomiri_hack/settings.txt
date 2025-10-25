@@ -1,0 +1,23 @@
+
+$ gsettings set com.canonical.qtmir lifecycle-exempt-appids "['music.ubports', 'tomatosoft.oxlauncher']"
+
+$ dconf dump /com/canonical/
+[qtmir]
+lifecycle-exempt-appids=['music.ubports', 'tomatosoft.oxlauncher']
+
+
+com.lomiri.shell
+<key type="s" name="background-picture-uri">
+  <default>'file:///usr/share/backgrounds/lomiri-default-background.png'</default>
+  <summary>Background picture URI for user session</summary>
+
+com.lomiri.Shell.Greeter
+<key type="s" name="background-picture-uri">
+  <default>'file:///usr/share/backgrounds/lomiri-default-background.png'</default>
+  <summary>Background picture URI for user session</summary>
+
+
+gsettings set com.canonical.qtmir lifecycle-exempt-appids "['music.ubports', 'tomatosoft.oxlauncher']"
+gsettings set com.lomiri.Shell background-picture-uri '/opt/click.ubuntu.com/tomatosoft.oxlauncher/current/data/flutter_assets/assets/images/default_wallpaper.jpg'
+gsettings set com.lomiri.shell.Greeter background-picture-uri '/opt/click.ubuntu.com/tomatosoft.oxlauncher/current/data/flutter_assets/assets/images/default_wallpaper.jpg'
+/opt/click.ubuntu.com/tomatosoft.oxlauncher/current/data/flutter_assets/assets/images/default_wallpaper.jpg

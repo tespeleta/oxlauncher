@@ -1,0 +1,13 @@
+#!/bin/sh
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+export WAYLAND_DISPLAY=wayland-0
+export MIR_SOCKET="$XDG_RUNTIME_DIR/mir_socket"
+export QT_QPA_PLATFORM="ubuntumirclient;wayland-egl;xcb"
+export LD_LIBRARY_PATH="/usr/lib/aarch64-linux-gnu:/lib/aarch64-linux-gnu:/home/phablet/install/lib"
+export USER=phablet
+export HOME=/home/phablet
+export DESKTOP_FILE_HINT="$HOME/.local/share/applications/tomatosoft.oxlauncher_oxlauncher_1.0.0.desktop"
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+# Run with absolute path
+exec /home/phablet/install/oxlauncher -b /home/phablet/install -s 2.5
