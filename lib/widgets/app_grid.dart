@@ -58,7 +58,7 @@ class _AppGridState extends State<AppGrid> {
     for (int row = 0; row < kNumRows; row++) {
       for (int col = 0; col < kNumCols; col++) {
         final app = getAppAt(items: currentItems, row: row, col: col);
-        if (app.name.isEmpty) continue;
+        if (app == null || app.name.isEmpty) continue;
 
         final centerX = offset.dx + gridSize.width * (2 * col + 1) / (2 * kNumCols);
         final centerY = offset.dy + gridSize.height * (2 * row + 1) / (2 * kNumRows);
@@ -156,14 +156,6 @@ class _AppGridState extends State<AppGrid> {
       ),
     );
     Overlay.of(context).insert(menuOverlayEntry!);
-
-    setState(() { iconScale = 1; });
-
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (!isDragging) {
-        setState(() { iconScale = 1.0; });
-      }
-    });
   }
 
   void _handleMenuAction(String action) {
@@ -201,7 +193,7 @@ class _AppGridState extends State<AppGrid> {
 
     if (toIndex != -1) {
       final fromIndex = currentItems.indexWhere(
-            (item) => item.app.name == draggedApp!.name,
+            (item) => (item.app?.name == draggedApp!.name),
       );
       if (fromIndex != -1 && fromIndex != toIndex) {
         final fromItem = currentItems[fromIndex];
@@ -285,8 +277,8 @@ class _AppGridState extends State<AppGrid> {
               children: [
                 // All icons as Positioned widgets
                 for (final item in currentItems)
-                  if (item.app.name.isNotEmpty)
-                    _buildIcon(item.app, gridSize),
+                  if (item.app != null && item.app!.name.isNotEmpty)
+                    _buildIcon(item.app!, gridSize),
                 // Draggable icon (overrides static position during drag)
                 if (dragPosition != null && draggedApp != null)
                   AnimatedPositioned(
@@ -326,7 +318,7 @@ class _AppGridState extends State<AppGrid> {
     final tileHeight = gridSize.height / kNumRows;
 
     // Check if this icon is the drop target
-    final item = currentItems.firstWhere((i) => i.app.name == app.name,
+    final item = currentItems.firstWhere((i) => (i.app != null && i.app!.name == app.name),
       orElse: () => throw StateError('App not found in grid'),
     );
     final isDropTarget = _dropTarget != null &&
@@ -342,16 +334,15 @@ class _AppGridState extends State<AppGrid> {
           if (!isDragging && menuOverlayEntry == null) {
             setState(() {
               _tappedApp = app;
+              iconScale = 0.8;
             });
           }
         },
         onTapUp: (_) {
-          if (_tappedApp == app) {
-            setState(() {
-              _tappedApp = null;
-            });
-            // TODO: launch app
-          }
+          setState(() {
+            iconScale = 1;
+          });
+          // TODO: launch app
         },
         onPanStart: (_) {
           // Cancel tap feedback — this is a drag gesture
@@ -363,9 +354,14 @@ class _AppGridState extends State<AppGrid> {
         },
         onLongPressStart: (details) {
           setState(() {
-            _tappedApp = null; // cancel any tap feedback
+            iconScale = 1.1;
           });
           _showContextMenu(app, details.globalPosition, gridSize);
+        },
+        onLongPressEnd: (details) {
+          setState(() {
+            iconScale = 1;
+          });
         },
         child: SizedBox(
           width: tileWidth,
@@ -390,8 +386,8 @@ class _AppGridState extends State<AppGrid> {
               // AppTile
               Center(
                 child: AnimatedScale(
-                  scale: _tappedApp?.name == app.name ? 0.95 : 1.0,
-                  duration: const Duration(milliseconds: 100),
+                  scale: _tappedApp?.name == app.name ? iconScale : 1,
+                  duration: const Duration(milliseconds: 80),
                   curve: Curves.easeInOut,
                   child: AppTile(
                     app: app,

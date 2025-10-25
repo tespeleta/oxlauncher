@@ -41,24 +41,24 @@ class Application {
 }
 
 class ScreenItem {
-  final Application app;
   final int row;
   final int col;
+  Application? app;
 
-  ScreenItem({required this.app, required this.row, required this.col});
+  ScreenItem({required this.row, required this.col, this.app});
 
   Map<String, dynamic> toJson() => {
-    'name': app.name,
-    'iconPath': app.iconPath,
+    'name': app?.name ?? '',
+    'iconPath': app?.iconPath ?? '',
     'row': row,
     'col': col,
   };
 
   factory ScreenItem.fromJson(Map<String, dynamic> json) => ScreenItem(
-    app: Application(
+    app: json['name'] != '' ? Application(
       name: json['name'],
       iconPath: json['iconPath'],
-    ),
+    ): null,
     row: json['row'],
     col: json['col'],
   );

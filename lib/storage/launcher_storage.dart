@@ -50,11 +50,14 @@ class LauncherStorage {
   static LauncherScreen _createDefaultScreen() {
     final items = <ScreenItem>[];
     for (int i = 0; i < 25; i++) {
-      items.add(ScreenItem(
-        app: Application(name: _toAppName(someApps[i]), iconPath: someApps[i]),
+      var item = ScreenItem(
         row: i ~/ 5,
         col: i % 5,
-      ));
+      );
+      if (i % 2 == 0) {
+        item.app = Application(name: _toAppName(someApps[i]), iconPath: someApps[i]);
+      }
+      items.add(item);
     }
     return LauncherScreen(items: items);
   }
@@ -82,7 +85,7 @@ String _getAppDataDir() {
   }
 }
 
-Application getAppAt({
+Application? getAppAt({
   required List<ScreenItem> items,
   required int row,
   required int col,
