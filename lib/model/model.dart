@@ -18,7 +18,9 @@ class LauncherState {
     final dockJson = json['dock'] as List?;
     final dockApps = dockJson?.map((e) => Application(
           name: e['name'] as String,
-          iconPath: e['iconPath'] as String)
+          iconPath: e['iconPath'] as String,
+          exec: e['exec'] as String,
+          desktopFilePath: e['desktopFilePath'] as String)
     ).toList() ?? LauncherStorage.defaultDockApps;
 
     return LauncherState(screens: screens, dockApps: dockApps);
@@ -36,29 +38,44 @@ class LauncherScreen {
 
 class Application {
   final String name;
-  final String iconPath; // e.g. 'vlc.png'
-  const Application({required this.name, required this.iconPath});
+  final String exec;      // the executable command
+  final String iconPath;  // icon filename or full path
+  final String desktopFilePath; // full path to .desktop file
+
+  const Application({
+    required this.name,
+    required this.exec,
+    required this.iconPath,
+    required this.desktopFilePath,
+  });
+
+  @override
+  String toString() => '$name -> $exec (icon: $iconPath)';
 }
 
 class ScreenItem {
-  final Application app;
   final int row;
   final int col;
+  Application? app;
 
-  ScreenItem({required this.app, required this.row, required this.col});
+  ScreenItem({required this.row, required this.col, this.app});
 
   Map<String, dynamic> toJson() => {
-    'name': app.name,
-    'iconPath': app.iconPath,
+    'name': app?.name ?? '',
+    'iconPath': app?.iconPath ?? '',
+    'exec': app?.exec ?? '',
+    'desktopFilePath': app?.desktopFilePath ?? '',
     'row': row,
     'col': col,
   };
 
   factory ScreenItem.fromJson(Map<String, dynamic> json) => ScreenItem(
-    app: Application(
+    app: json['name'] != '' ? Application(
       name: json['name'],
       iconPath: json['iconPath'],
-    ),
+      exec: json['exec'] ?? '',
+      desktopFilePath: json['desktopFilePath'],
+    ): null,
     row: json['row'],
     col: json['col'],
   );

@@ -18,7 +18,9 @@ class OxygenLauncher extends ConsumerWidget {
     return MaterialApp(
       home: stateAsync.when(
         loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
-        error: (err, _) => Scaffold(body: Center(child: Text('Error: $err'))),
+        error: (err, xx) {
+          return Scaffold(body: Center(child: Text('Error: $err')));
+        },
         data: (state) {
           final currentScreen = state.screens.first; // only 1 screen for now
           return Scaffold(

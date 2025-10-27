@@ -8,6 +8,8 @@ import 'package:oxlauncher/utils/grid_utils.dart';
 import 'package:oxlauncher/widgets/app_tile.dart';
 import 'package:oxlauncher/widgets/context_menu.dart';
 
+import 'draggable_icon.dart';
+
 class AppGrid extends StatefulWidget {
   final List<ScreenItem> items;
   final Future<void> Function(List<ScreenItem> newItems) onReorder;
@@ -30,6 +32,9 @@ class _AppGridState extends State<AppGrid> {
   Offset? originalPosition;
   double iconScale = 1.0;
   bool isDragging = false;
+  final _dragOverlayKey = GlobalKey<DraggableIconOverlayState>();
+  DraggableIconOverlay? _dragOverlayWidget;
+  OverlayEntry? dragOverlayEntry;
   OverlayEntry? menuOverlayEntry;
   OverlayEntry? menuBarrierEntry;
   Application? _tappedApp;
@@ -58,7 +63,7 @@ class _AppGridState extends State<AppGrid> {
     for (int row = 0; row < kNumRows; row++) {
       for (int col = 0; col < kNumCols; col++) {
         final app = getAppAt(items: currentItems, row: row, col: col);
-        if (app.name.isEmpty) continue;
+        if (app == null || app.name.isEmpty) continue;
 
         final centerX = offset.dx + gridSize.width * (2 * col + 1) / (2 * kNumCols);
         final centerY = offset.dy + gridSize.height * (2 * row + 1) / (2 * kNumRows);
@@ -156,14 +161,6 @@ class _AppGridState extends State<AppGrid> {
       ),
     );
     Overlay.of(context).insert(menuOverlayEntry!);
-
-    setState(() { iconScale = 1; });
-
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (!isDragging) {
-        setState(() { iconScale = 1.0; });
-      }
-    });
   }
 
   void _handleMenuAction(String action) {
@@ -171,7 +168,7 @@ class _AppGridState extends State<AppGrid> {
     // TODO
   }
 
-  void _startDrag(Offset initialPosition) {
+  void _startDrag(Offset initialPosition, Rect? iconBounds, Size tileSize) {
     if (isDragging || draggedApp == null) return;
     isDragging = true;
     menuOverlayEntry?.remove();
@@ -180,6 +177,15 @@ class _AppGridState extends State<AppGrid> {
     setState(() {
       dragPosition = initialPosition;
     });
+    _dragOverlayWidget = DraggableIconOverlay(
+      key: _dragOverlayKey,
+      app: draggedApp!,
+      position: initialPosition,
+      iconBounds: iconBounds ?? Rect.fromLTRB(0, 0, 0, 0),
+      tileSize: tileSize,
+    );
+    dragOverlayEntry = OverlayEntry(builder: (context) => _dragOverlayWidget!);
+    Overlay.of(context).insert(dragOverlayEntry!);
   }
 
   void _updateDragPosition(Offset position, Size gridSize) {
@@ -189,6 +195,7 @@ class _AppGridState extends State<AppGrid> {
       dragPosition = position;
       _dropTarget = cell;
     });
+    _dragOverlayKey.currentState?.updatePosition(position);
   }
 
   void _endDrag(Offset dropPosition, Size gridSize) {
@@ -201,7 +208,7 @@ class _AppGridState extends State<AppGrid> {
 
     if (toIndex != -1) {
       final fromIndex = currentItems.indexWhere(
-            (item) => item.app.name == draggedApp!.name,
+            (item) => (item.app?.name == draggedApp!.name),
       );
       if (fromIndex != -1 && fromIndex != toIndex) {
         final fromItem = currentItems[fromIndex];
@@ -238,6 +245,7 @@ class _AppGridState extends State<AppGrid> {
 
   void _cleanup() {
     _cleanupMenu();
+    dragOverlayEntry?.remove();
     setState(() {
       draggedApp = null;
       dragPosition = null;
@@ -245,6 +253,7 @@ class _AppGridState extends State<AppGrid> {
       isDragging = false;
       _tappedApp = null;
       _dropTarget = null;
+      dragOverlayEntry = null;
     });
   }
 
@@ -257,59 +266,48 @@ class _AppGridState extends State<AppGrid> {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final gridSize = Size(constraints.maxWidth, constraints.maxHeight);
-        final tileWidth = gridSize.width / kNumCols;
-        final tileHeight = gridSize.height / kNumRows;
-        final fullSize = constraints.biggest;
-        _updateIconPositions(fullSize);
+    return AnimatedScale(
+      scale: isDragging ? 0.9 : 1,
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeInOut,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final gridSize = Size(constraints.maxWidth, constraints.maxHeight);
+          final tileWidth = gridSize.width / kNumCols;
+          final tileHeight = gridSize.height / kNumRows;
+          final fullSize = constraints.biggest;
+          _updateIconPositions(fullSize);
 
-        return Listener(
-          onPointerMove: (event) {
-            if (menuOverlayEntry != null && !isDragging) {
-              _startDrag(event.position);
-            } else if (isDragging) {
-              _updateDragPosition(event.position, gridSize);
-            }
-          },
-          onPointerUp: (event) {
-            if (isDragging) {
-              _endDrag(event.position, gridSize);
-            }
-          },
-          child: SizedBox.fromSize(
-            size: gridSize,
-            child: Stack(
-              key: _gridKey,
-              children: [
-                // All icons as Positioned widgets
-                for (final item in currentItems)
-                  if (item.app.name.isNotEmpty)
-                    _buildIcon(item.app, gridSize),
-                // Draggable icon (overrides static position during drag)
-                if (dragPosition != null && draggedApp != null)
-                  AnimatedPositioned(
-                    left: dragPosition!.dx - tileWidth / 2,
-                    top: dragPosition!.dy - tileHeight / 2,
-                    duration: const Duration(milliseconds: 100),
-                    curve: Curves.easeOut,
-                    child: SizedBox(
-                      width: tileWidth,
-                      height: tileHeight,
-                      child: AppTile(
-                        app: draggedApp!,
-                        scale: 1.05,
-                        showLabel: false, // no label during drag
-                        tileSize: Size(tileWidth, tileHeight),
-                      ),
-                    ),
-                  ),
-              ],
+          return Listener(
+            onPointerMove: (event) {
+              final tileSize = Size(tileWidth, tileHeight);
+              if (menuOverlayEntry != null && !isDragging) {
+                var iconPos = _getIconBoundsByPosition(event.position, gridSize);
+                _startDrag(event.position, iconPos, tileSize);
+              } else if (isDragging) {
+                _updateDragPosition(event.position, gridSize);
+              }
+            },
+            onPointerUp: (event) {
+              if (isDragging) {
+                _endDrag(event.position, gridSize);
+              }
+            },
+            child: SizedBox.fromSize(
+              size: gridSize,
+              child: Stack(
+                key: _gridKey,
+                children: [
+                  // All icons as Positioned widgets
+                  for (final item in currentItems)
+                    if (item.app != null && item.app!.name.isNotEmpty)
+                      _buildIcon(item.app!, gridSize),
+                ],
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
@@ -326,7 +324,7 @@ class _AppGridState extends State<AppGrid> {
     final tileHeight = gridSize.height / kNumRows;
 
     // Check if this icon is the drop target
-    final item = currentItems.firstWhere((i) => i.app.name == app.name,
+    final item = currentItems.firstWhere((i) => (i.app != null && i.app!.name == app.name),
       orElse: () => throw StateError('App not found in grid'),
     );
     final isDropTarget = _dropTarget != null &&
@@ -342,16 +340,15 @@ class _AppGridState extends State<AppGrid> {
           if (!isDragging && menuOverlayEntry == null) {
             setState(() {
               _tappedApp = app;
+              iconScale = 0.8;
             });
           }
         },
         onTapUp: (_) {
-          if (_tappedApp == app) {
-            setState(() {
-              _tappedApp = null;
-            });
-            // TODO: launch app
-          }
+          setState(() {
+            iconScale = 1;
+          });
+          // TODO: launch app
         },
         onPanStart: (_) {
           // Cancel tap feedback — this is a drag gesture
@@ -363,9 +360,14 @@ class _AppGridState extends State<AppGrid> {
         },
         onLongPressStart: (details) {
           setState(() {
-            _tappedApp = null; // cancel any tap feedback
+            iconScale = 1.1;
           });
           _showContextMenu(app, details.globalPosition, gridSize);
+        },
+        onLongPressEnd: (details) {
+          setState(() {
+            iconScale = 1;
+          });
         },
         child: SizedBox(
           width: tileWidth,
@@ -382,7 +384,7 @@ class _AppGridState extends State<AppGrid> {
                     width: iconBounds.width,
                     height: iconBounds.height,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.3),
+                      color: Colors.white.withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
@@ -390,8 +392,8 @@ class _AppGridState extends State<AppGrid> {
               // AppTile
               Center(
                 child: AnimatedScale(
-                  scale: _tappedApp?.name == app.name ? 0.95 : 1.0,
-                  duration: const Duration(milliseconds: 100),
+                  scale: _tappedApp?.name == app.name ? iconScale : 1,
+                  duration: const Duration(milliseconds: 80),
                   curve: Curves.easeInOut,
                   child: AppTile(
                     app: app,

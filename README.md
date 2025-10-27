@@ -1,16 +1,16 @@
 # oxlauncher
 
-A new Flutter project.
+Compile with:
 
-## Getting Started
+```
+source ./.venv/bin/activate
+cd clickable
+clickable build --arch=arm64
+```
+Then copy the click file to your phone.
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Install and register for phablet user
+```
+$ sudo click install --allow-unauthenticated tomatosoft.oxlauncher_1.0.0_arm64.click
+$ sudo click register --user=phablet tomatosoft.oxlauncher 1.0.0
+```
