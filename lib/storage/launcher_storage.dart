@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:oxlauncher/model/model.dart';
 import 'package:oxlauncher/utils/constants.dart';
 
@@ -15,12 +16,12 @@ class LauncherStorage {
   static Future<LauncherState> loadState() async {
     final path = await configPath;
     final file = File(path);
+    print(file);
     if (!file.existsSync()) {
       final defaultState = _createDefaultState(defaultDockApps);
       await saveState(defaultState);
       return defaultState;
     }
-    print(path);
     final data = await file.readAsString();
     return LauncherState.fromJson(json.decode(data) as Map<String, dynamic>);
   }
@@ -40,34 +41,30 @@ class LauncherStorage {
   }
 
   static const List<Application> defaultDockApps = [
-    Application(name: 'Phone', iconPath: 'phone.png'),
-    Application(name: 'WhatsApp', iconPath: 'whatsapp.png'),
-    Application(name: 'Camera', iconPath: 'camerapro.png'),
-    Application(name: 'Mail', iconPath: 'com_google_android_gm.png'),
-    Application(name: 'Browser', iconPath: 'firefox_nightly.png'),
+    // Application(name: 'Phone', iconPath: 'phone.png'),
+    // Application(name: 'WhatsApp', iconPath: 'whatsapp.png'),
+    // Application(name: 'Camera', iconPath: 'camerapro.png'),
+    // Application(name: 'Mail', iconPath: 'com_google_android_gm.png'),
+    // Application(name: 'Browser', iconPath: 'firefox_nightly.png'),
   ];
 
   static LauncherScreen _createDefaultScreen() {
     final items = <ScreenItem>[];
-    for (int i = 0; i < 25; i++) {
+    var availableApps = _getAvailableApplications();
+    final n = min(availableApps.length, 22);
+
+    for (int i = 0; i < n; i++) {
       var item = ScreenItem(
         row: i ~/ 5,
         col: i % 5,
       );
-      if (i % 2 == 0) {
-        item.app = Application(name: _toAppName(someApps[i]), iconPath: someApps[i]);
-      }
+      // if (i % 2 == 0) {
+      item.app = availableApps[i];
+      // }
       items.add(item);
     }
     return LauncherScreen(items: items);
   }
-}
-
-String _toAppName(String imagePath) {
-  if (imagePath.endsWith(".png")) {
-    return imagePath.substring(0, imagePath.length-4);
-  }
-  return imagePath;
 }
 
 String _getAppDataDir() {
@@ -93,21 +90,87 @@ Application? getAppAt({
   try {
     return items.firstWhere((item) => item.row == row && item.col == col).app;
   } catch (_) {
-    // Return invisible placeholder
-    return Application(name: '', iconPath: 'placeholder.png');
+    return null;
   }
 }
 
-final someApps = [
-  "abc.png", "abdelrahman_wifianalyzerpro.png", "ac3_video_player.png", "accuweather.png",
-  "linkedin.png", "my_o2.png", "newpipe.png", "google_maps.png", "google_messages.png", "google_youtube.png",
-  "oneplus_mobile.png", "shazam.png", "signal.png", "slack.png", "spotify.png", "telegram.png",
-  "ai_perplexity_app_android.png", "airbnb.png", "aj_english.png", "amazon_kindle.png", "amazon_shopping.png", "american_airlines.png",
-  "amex_uk.png", "aplicacion_tiempo.png", "app_1weather.png", "app_alextran_immich.png", "audible.png", "bbc_iplayer.png", "bbc_news.png",
-  "bbva_spain.png", "calc_plus.png", "camerapro.png", "ch_protonvpn_android.png", "com_google_android_apps_docs.png",
-  "com_google_android_apps_walletnfcrel.png", "com_google_android_gm.png", "com_google_ar_lens.png", "phone.png",
-  "com_openai_chatgpt.png", "firefox_nightly.png", "google_calendar.png", "google_chrome.png", "google_earth.png", "google_keep.png",
-  "google_play_services.png", "google_search.png", "google_wallet.png",
-  "whatsapp.png", "oneplus_camera.png", "oneplus_community.png", "oneplus_consumer_android.png",
-];
 
+/// Parse a single .desktop file and return an Application object,
+/// or null if the app should not be shown in the drawer.
+Application? parseDesktopFile(File file) {
+  String? name;
+  String? exec;
+  String? icon;
+  String type = 'Application'; // default type
+  bool noDisplay = false;
+  bool hidden = false;
+
+  try {
+    final lines = file.readAsLinesSync();
+    for (var line in lines) {
+      line = line.trim();
+      if (line.startsWith('Name=')) name = line.substring(5);
+      if (line.startsWith('Exec=')) exec = line.substring(5);
+      if (line.startsWith('Icon=')) icon = line.substring(5);
+      if (line.startsWith('Type=')) type = line.substring(5);
+      if (line.startsWith('NoDisplay=')) noDisplay = line.substring(10).toLowerCase() == 'true';
+      if (line.startsWith('Hidden=')) hidden = line.substring(7).toLowerCase() == 'true';
+    }
+  } catch (_) {
+    return null;
+  }
+
+  // Only show visible, startable apps
+  if (name == null || exec == null) return null;
+  if (type != 'Application') return null;
+  if (noDisplay || hidden) return null;
+  if (icon == null || icon.isEmpty) return null;
+  if (exec.contains('oxlauncher')) return null;
+
+  return Application(
+    name: name,
+    exec: exec,
+    iconPath: icon,
+    desktopFilePath: file.path,
+  );
+}
+
+/// Scan directories for .desktop files and return a list of visible/startable apps.
+List<Application> _getAvailableApplications() {
+  final apps = <Application>[];
+
+  final paths = [
+    '/usr/share/applications',
+    '/home/phablet/.local/share/applications',
+    '/home/phablet/.local/share/libertine-container'
+  ];
+
+  for (var path in paths) {
+    final dir = Directory(path);
+    if (!dir.existsSync()) continue;
+
+    if (path.contains('libertine-container')) {
+      // Scan all libertine containers
+      for (var container in dir.listSync()) {
+        final appsDir = Directory('${container.path}/rootfs/usr/share/applications');
+        if (!appsDir.existsSync()) continue;
+        for (var file in appsDir.listSync()) {
+          if (file is File && file.path.endsWith('.desktop')) {
+            final app = parseDesktopFile(file);
+            if (app != null) apps.add(app);
+          }
+        }
+      }
+    } else {
+      // Normal apps
+      for (var file in dir.listSync()) {
+        if (file is File && file.path.endsWith('.desktop')) {
+          final app = parseDesktopFile(file);
+          if (app != null) apps.add(app);
+        }
+      }
+    }
+  }
+  apps.sort((a, b) => a.name.compareTo(b.name));
+  return apps;
+}

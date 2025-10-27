@@ -19,8 +19,6 @@ class OxygenLauncher extends ConsumerWidget {
       home: stateAsync.when(
         loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
         error: (err, xx) {
-          print(err);
-          print(xx);
           return Scaffold(body: Center(child: Text('Error: $err')));
         },
         data: (state) {

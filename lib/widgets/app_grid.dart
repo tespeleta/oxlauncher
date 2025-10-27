@@ -8,6 +8,8 @@ import 'package:oxlauncher/utils/grid_utils.dart';
 import 'package:oxlauncher/widgets/app_tile.dart';
 import 'package:oxlauncher/widgets/context_menu.dart';
 
+import 'draggable_icon.dart';
+
 class AppGrid extends StatefulWidget {
   final List<ScreenItem> items;
   final Future<void> Function(List<ScreenItem> newItems) onReorder;
@@ -30,6 +32,9 @@ class _AppGridState extends State<AppGrid> {
   Offset? originalPosition;
   double iconScale = 1.0;
   bool isDragging = false;
+  final _dragOverlayKey = GlobalKey<DraggableIconOverlayState>();
+  DraggableIconOverlay? _dragOverlayWidget;
+  OverlayEntry? dragOverlayEntry;
   OverlayEntry? menuOverlayEntry;
   OverlayEntry? menuBarrierEntry;
   Application? _tappedApp;
@@ -163,7 +168,7 @@ class _AppGridState extends State<AppGrid> {
     // TODO
   }
 
-  void _startDrag(Offset initialPosition) {
+  void _startDrag(Offset initialPosition, Rect? iconBounds, Size tileSize) {
     if (isDragging || draggedApp == null) return;
     isDragging = true;
     menuOverlayEntry?.remove();
@@ -172,6 +177,15 @@ class _AppGridState extends State<AppGrid> {
     setState(() {
       dragPosition = initialPosition;
     });
+    _dragOverlayWidget = DraggableIconOverlay(
+      key: _dragOverlayKey,
+      app: draggedApp!,
+      position: initialPosition,
+      iconBounds: iconBounds ?? Rect.fromLTRB(0, 0, 0, 0),
+      tileSize: tileSize,
+    );
+    dragOverlayEntry = OverlayEntry(builder: (context) => _dragOverlayWidget!);
+    Overlay.of(context).insert(dragOverlayEntry!);
   }
 
   void _updateDragPosition(Offset position, Size gridSize) {
@@ -181,6 +195,7 @@ class _AppGridState extends State<AppGrid> {
       dragPosition = position;
       _dropTarget = cell;
     });
+    _dragOverlayKey.currentState?.updatePosition(position);
   }
 
   void _endDrag(Offset dropPosition, Size gridSize) {
@@ -230,6 +245,7 @@ class _AppGridState extends State<AppGrid> {
 
   void _cleanup() {
     _cleanupMenu();
+    dragOverlayEntry?.remove();
     setState(() {
       draggedApp = null;
       dragPosition = null;
@@ -237,6 +253,7 @@ class _AppGridState extends State<AppGrid> {
       isDragging = false;
       _tappedApp = null;
       _dropTarget = null;
+      dragOverlayEntry = null;
     });
   }
 
@@ -251,7 +268,7 @@ class _AppGridState extends State<AppGrid> {
   Widget build(BuildContext context) {
     return AnimatedScale(
       scale: isDragging ? 0.9 : 1,
-      duration: const Duration(milliseconds: 250),
+      duration: const Duration(milliseconds: 150),
       curve: Curves.easeInOut,
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -263,8 +280,10 @@ class _AppGridState extends State<AppGrid> {
 
           return Listener(
             onPointerMove: (event) {
+              final tileSize = Size(tileWidth, tileHeight);
               if (menuOverlayEntry != null && !isDragging) {
-                _startDrag(event.position);
+                var iconPos = _getIconBoundsByPosition(event.position, gridSize);
+                _startDrag(event.position, iconPos, tileSize);
               } else if (isDragging) {
                 _updateDragPosition(event.position, gridSize);
               }
@@ -283,24 +302,6 @@ class _AppGridState extends State<AppGrid> {
                   for (final item in currentItems)
                     if (item.app != null && item.app!.name.isNotEmpty)
                       _buildIcon(item.app!, gridSize),
-                  // Draggable icon (overrides static position during drag)
-                  if (dragPosition != null && draggedApp != null)
-                    AnimatedPositioned(
-                      left: dragPosition!.dx - tileWidth / 2,
-                      top: dragPosition!.dy - tileHeight / 2,
-                      duration: const Duration(milliseconds: 100),
-                      curve: Curves.easeOut,
-                      child: SizedBox(
-                        width: tileWidth,
-                        height: tileHeight,
-                        child: AppTile(
-                          app: draggedApp!,
-                          scale: 1.05,
-                          showLabel: false, // no label during drag
-                          tileSize: Size(tileWidth, tileHeight),
-                        ),
-                      ),
-                    ),
                 ],
               ),
             ),
@@ -383,7 +384,7 @@ class _AppGridState extends State<AppGrid> {
                     width: iconBounds.width,
                     height: iconBounds.height,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.3),
+                      color: Colors.white.withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
