@@ -33,19 +33,19 @@ class LauncherStorage {
   }
 
   /// Default state
-  static LauncherState _createDefaultState(List<Application> defaultDockApps) {
+  static LauncherState _createDefaultState(List<DockItem> defaultDockApps) {
     return LauncherState(
       screens: [_createDefaultScreen()],
-      dockApps: defaultDockApps,
+      dockItems: defaultDockApps,
     );
   }
 
-  static const List<Application> defaultDockApps = [
-    // Application(name: 'Phone', iconPath: 'phone.png'),
-    // Application(name: 'WhatsApp', iconPath: 'whatsapp.png'),
-    // Application(name: 'Camera', iconPath: 'camerapro.png'),
-    // Application(name: 'Mail', iconPath: 'com_google_android_gm.png'),
-    // Application(name: 'Browser', iconPath: 'firefox_nightly.png'),
+  static const List<DockItem> defaultDockApps = [
+    DockItem(index: 0, app: Application(name: 'Phone', exec: '', iconPath: 'xxax', desktopFilePath: '')),
+    DockItem(index: 1, app: Application(name: 'WhatsApp', exec: '', iconPath: 'c', desktopFilePath: '')),
+    DockItem(index: 2, app: Application(name: 'Camera', exec: '', iconPath: 'v', desktopFilePath: '')),
+    DockItem(index: 3, app: Application(name: 'Mail', exec: '', iconPath: 'b', desktopFilePath: '')),
+    DockItem(index: 4, app: Application(name: 'Browser', exec: '', iconPath: 'r', desktopFilePath: '')),
   ];
 
   static LauncherScreen _createDefaultScreen() {
