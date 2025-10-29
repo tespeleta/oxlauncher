@@ -13,11 +13,15 @@ import 'draggable_icon.dart';
 class AppGrid extends StatefulWidget {
   final List<ScreenItem> items;
   final Future<void> Function(List<ScreenItem> newItems) onReorder;
+  final int numRows;
+  final int numCols;
 
   const AppGrid({
     super.key,
     required this.items,
     required this.onReorder,
+    this.numRows = kNumRows,
+    this.numCols = kNumCols,
   });
 
   @override
@@ -39,6 +43,7 @@ class _AppGridState extends State<AppGrid> {
   OverlayEntry? menuBarrierEntry;
   Application? _tappedApp;
   Point<int>? _dropTarget;
+  int _numRows = 0, _numCols = 0;
 
   // Cache icon positions to avoid re-computation
   Map<String, Offset> _iconPositions = {};
@@ -47,6 +52,8 @@ class _AppGridState extends State<AppGrid> {
   void initState() {
     super.initState();
     currentItems = widget.items;
+    _numCols = widget.numCols;
+    _numRows = widget.numRows;
     _updateIconPositions(const Size(400, 700)); // placeholder
   }
 
@@ -60,13 +67,13 @@ class _AppGridState extends State<AppGrid> {
     final offset = Offset(padding, padding);
 
     final positions = <String, Offset>{};
-    for (int row = 0; row < kNumRows; row++) {
-      for (int col = 0; col < kNumCols; col++) {
+    for (int row = 0; row < _numRows; row++) {
+      for (int col = 0; col < _numCols; col++) {
         final app = getAppAt(items: currentItems, row: row, col: col);
         if (app == null || app.name.isEmpty) continue;
 
-        final centerX = offset.dx + gridSize.width * (2 * col + 1) / (2 * kNumCols);
-        final centerY = offset.dy + gridSize.height * (2 * row + 1) / (2 * kNumRows);
+        final centerX = offset.dx + gridSize.width * (2 * col + 1) / (2 * _numCols);
+        final centerY = offset.dy + gridSize.height * (2 * row + 1) / (2 * _numRows);
         positions[app.name] = Offset(centerX, centerY);
       }
     }
@@ -74,20 +81,20 @@ class _AppGridState extends State<AppGrid> {
   }
 
   Point<int> _getCellFromLocalPosition(Offset localPosition, Size gridSize) {
-    final col = (localPosition.dx / gridSize.width * kNumCols).floor().clamp(0, kNumCols - 1);
-    final row = (localPosition.dy / gridSize.height * kNumRows).floor().clamp(0, kNumRows - 1);
+    final col = (localPosition.dx / gridSize.width * _numCols).floor().clamp(0, _numCols - 1);
+    final row = (localPosition.dy / gridSize.height * _numRows).floor().clamp(0, _numRows - 1);
     return Point(row, col);
   }
 
   Rect? _getIconBoundsByPosition(Offset globalPosition, Size gridSize) {
     // Convert global → local
     final localPos = globalPosition;
-    final col = (localPos.dx / gridSize.width * kNumCols).floor().clamp(0, kNumCols - 1);
-    final row = (localPos.dy / gridSize.height * kNumRows).floor().clamp(0, kNumRows - 1);
+    final col = (localPos.dx / gridSize.width * _numCols).floor().clamp(0, _numCols - 1);
+    final row = (localPos.dy / gridSize.height * _numRows).floor().clamp(0, _numRows - 1);
 
-    final itemWidth = gridSize.width / kNumCols;
-    final centerX = gridSize.width * (2 * col + 1) / (2 * kNumCols);
-    final centerY = gridSize.height * (2 * row + 1) / (2 * kNumRows);
+    final itemWidth = gridSize.width / _numCols;
+    final centerX = gridSize.width * (2 * col + 1) / (2 * _numCols);
+    final centerY = gridSize.height * (2 * row + 1) / (2 * _numRows);
 
     return Rect.fromCenter(
       center: Offset(centerX, centerY),
@@ -104,8 +111,8 @@ class _AppGridState extends State<AppGrid> {
     }
 
     // Compute tile size
-    final tileWidth = fullSize.width / kNumCols;
-    final tileHeight = fullSize.height / kNumRows;
+    final tileWidth = fullSize.width / _numCols;
+    final tileHeight = fullSize.height / _numRows;
 
     // Icon = 70% of tile width, centered in tile
     final iconSize = tileWidth * 0.7;
@@ -273,8 +280,8 @@ class _AppGridState extends State<AppGrid> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final gridSize = Size(constraints.maxWidth, constraints.maxHeight);
-          final tileWidth = gridSize.width / kNumCols;
-          final tileHeight = gridSize.height / kNumRows;
+          final tileWidth = gridSize.width / _numCols;
+          final tileHeight = gridSize.height / _numRows;
           final fullSize = constraints.biggest;
           _updateIconPositions(fullSize);
 
@@ -320,8 +327,8 @@ class _AppGridState extends State<AppGrid> {
     }
 
     // Compute tile size from grid
-    final tileWidth = gridSize.width / kNumCols;
-    final tileHeight = gridSize.height / kNumRows;
+    final tileWidth = gridSize.width / _numCols;
+    final tileHeight = gridSize.height / _numRows;
 
     // Check if this icon is the drop target
     final item = currentItems.firstWhere((i) => (i.app != null && i.app!.name == app.name),

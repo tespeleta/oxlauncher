@@ -55,23 +55,21 @@ class OxygenLauncher extends ConsumerWidget {
                     children: [
                       // Grid: use currentScreen.items
                       Expanded(
-                        child: GestureDetector(
-                          child: AppGrid(
-                            items: currentScreen.items,
-                            onReorder: (newItems) async {
-                              // Save to disk
-                              final updatedState = LauncherState(
-                                screens: [LauncherScreen(items: newItems)],
-                                dockApps: state.dockApps,
-                              );
-                              await LauncherStorage.saveState(updatedState);
-                              ref.refresh(launcherStateProvider);
-                            },
-                          ),
+                        child: AppGrid(
+                          items: currentScreen.items,
+                          onReorder: (newItems) async {
+                            // Save to disk
+                            final updatedState = LauncherState(
+                              screens: [LauncherScreen(items: newItems)],
+                              dockItems: state.dockItems,
+                            );
+                            await LauncherStorage.saveState(updatedState);
+                            ref.refresh(launcherStateProvider);
+                          },
                         ),
                       ),
                       // Dock
-                      Dock(dockApps: state.dockApps)
+                      Dock(dockItems: state.dockItems)
                     ],
                   ),
                 ],
