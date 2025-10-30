@@ -1,7 +1,9 @@
 
+import 'package:oxlauncher/utils/constants.dart';
+
 class LauncherState {
   final List<LauncherScreen> screens;
-  final List<DockItem> dockItems;
+  final List<ScreenItem> dockItems;
 
   LauncherState({required this.screens, required this.dockItems});
 
@@ -16,18 +18,18 @@ class LauncherState {
     ).toList() ?? [];
 
     final dockJson = json['dock'] as List?;
-    final dockItems = <DockItem>[];
+    final dockItems = <ScreenItem>[];
 
     if (dockJson != null) {
-      for (int i = 0; i < dockJson.length && i < 5; i++) {
+      for (int i = 0; i < dockJson.length && i < kNumDockIcons; i++) {
         final e = dockJson[i] as Map<String, dynamic>;
-        dockItems.add(DockItem.fromJson(e, i));
+        dockItems.add(ScreenItem.fromJson(e));
       }
     }
 
-    // Ensure exactly 5 dock items
-    while (dockItems.length < 5) {
-      dockItems.add(DockItem.empty(dockItems.length));
+    // Ensure exactly kNumDockIcons dock items
+    while (dockItems.length < kNumDockIcons) {
+      dockItems.add(ScreenItem.empty(0, dockItems.length));
     }
 
     return LauncherState(screens: screens, dockItems: dockItems);
@@ -63,9 +65,11 @@ class Application {
 class ScreenItem {
   final int row;
   final int col;
-  Application? app;
+  final Application? app;
 
-  ScreenItem({required this.row, required this.col, this.app});
+  const ScreenItem({required this.row, required this.col, this.app});
+
+  static ScreenItem empty(int row, int col) => ScreenItem(row: row, col: col);
 
   Map<String, dynamic> toJson() => {
     'name': app?.name ?? '',
@@ -86,57 +90,4 @@ class ScreenItem {
     row: json['row'],
     col: json['col'],
   );
-}
-
-class DockItem {
-  final Application? app;
-  final int index;
-
-  const DockItem({this.app, required this.index});
-
-  static DockItem empty(int index) => DockItem(index: index);
-
-  Map<String, dynamic> toJson() {
-    final a = app;
-    return {
-      'name': a?.name ?? '',
-      'iconPath': a?.iconPath ?? '',
-      'exec': a?.exec ?? '',
-      'desktopFilePath': a?.desktopFilePath ?? '',
-    };
-  }
-
-  static DockItem fromJson(Map<String, dynamic> json, int index) {
-    if (json['name'] == '') {
-      return DockItem(index: index);
-    }
-    return DockItem(
-      app: Application(
-        name: json['name'] as String,
-        iconPath: json['iconPath'] as String,
-        exec: json['exec'] as String? ?? '',
-        desktopFilePath: json['desktopFilePath'] as String? ?? '',
-      ),
-      index: index,
-    );
-  }
-}
-
-// Convert DockItem list → ScreenItem list (1 row, 5 cols)
-List<ScreenItem> dockToGridItems(List<DockItem> dock) {
-  return List.generate(5, (col) {
-    return ScreenItem(
-      row: 0,
-      col: col,
-      app: dock[col].app,
-    );
-  });
-}
-
-// Convert ScreenItem list (1×5) → DockItem list
-List<DockItem> gridToDockItems(List<ScreenItem> items) {
-  return List.generate(5, (i) {
-    final item = items.firstWhere((it) => it.col == i, orElse: () => ScreenItem(row: 0, col: i));
-    return DockItem(app: item.app, index: i);
-  });
 }

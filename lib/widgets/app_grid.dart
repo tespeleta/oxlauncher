@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:oxlauncher/controllers/drag_controller.dart';
 import 'package:oxlauncher/model/model.dart';
 import 'package:oxlauncher/storage/launcher_storage.dart';
 import 'package:oxlauncher/utils/constants.dart';
@@ -8,18 +9,20 @@ import 'package:oxlauncher/utils/grid_utils.dart';
 import 'package:oxlauncher/widgets/app_tile.dart';
 import 'package:oxlauncher/widgets/context_menu.dart';
 
-import 'draggable_icon.dart';
-
 class AppGrid extends StatefulWidget {
   final List<ScreenItem> items;
-  final Future<void> Function(List<ScreenItem> newItems) onReorder;
+  final DragController dragController;
+  final Future<Null> Function(dynamic newItems) onChange;
+  final bool showLabels;
   final int numRows;
   final int numCols;
 
   const AppGrid({
     super.key,
     required this.items,
-    required this.onReorder,
+    required this.dragController,
+    required this.onChange,
+    this.showLabels = true,
     this.numRows = kNumRows,
     this.numCols = kNumCols,
   });
@@ -31,18 +34,10 @@ class AppGrid extends StatefulWidget {
 class _AppGridState extends State<AppGrid> {
   final GlobalKey _gridKey = GlobalKey();
   late List<ScreenItem> currentItems;
-  Application? draggedApp;
-  Offset? dragPosition;
-  Offset? originalPosition;
   double iconScale = 1.0;
-  bool isDragging = false;
-  final _dragOverlayKey = GlobalKey<DraggableIconOverlayState>();
-  DraggableIconOverlay? _dragOverlayWidget;
-  OverlayEntry? dragOverlayEntry;
   OverlayEntry? menuOverlayEntry;
   OverlayEntry? menuBarrierEntry;
   Application? _tappedApp;
-  Point<int>? _dropTarget;
   int _numRows = 0, _numCols = 0;
 
   // Cache icon positions to avoid re-computation
@@ -54,7 +49,7 @@ class _AppGridState extends State<AppGrid> {
     currentItems = widget.items;
     _numCols = widget.numCols;
     _numRows = widget.numRows;
-    _updateIconPositions(const Size(400, 700)); // placeholder
+    _updateIconPositions(const Size(400, 700));
   }
 
   void _updateIconPositions(Size fullSize) {
@@ -78,12 +73,6 @@ class _AppGridState extends State<AppGrid> {
       }
     }
     _iconPositions = positions;
-  }
-
-  Point<int> _getCellFromLocalPosition(Offset localPosition, Size gridSize) {
-    final col = (localPosition.dx / gridSize.width * _numCols).floor().clamp(0, _numCols - 1);
-    final row = (localPosition.dy / gridSize.height * _numRows).floor().clamp(0, _numRows - 1);
-    return Point(row, col);
   }
 
   Rect? _getIconBoundsByPosition(Offset globalPosition, Size gridSize) {
@@ -115,9 +104,10 @@ class _AppGridState extends State<AppGrid> {
     final tileHeight = fullSize.height / _numRows;
 
     // Icon = 70% of tile width, centered in tile
+    final spaceForLabel = tileHeight * 0.09;
     final iconSize = tileWidth * 0.7;
     final iconLeft = position.dx - iconSize / 2;
-    final iconTop = position.dy - iconSize / 2 - (tileHeight * 0.09); // shift up to account for label
+    final iconTop = position.dy - iconSize / 2 - spaceForLabel; // shift up to account for label
 
     return Rect.fromLTWH(iconLeft, iconTop, iconSize, iconSize);
   }
@@ -133,8 +123,6 @@ class _AppGridState extends State<AppGrid> {
       ),
     );
     Overlay.of(context).insert(menuBarrierEntry!);
-
-    draggedApp = app;
 
     // Get grid's RenderBox to compute local position
     final gridContext = _gridKey.currentContext;
@@ -175,95 +163,6 @@ class _AppGridState extends State<AppGrid> {
     // TODO
   }
 
-  void _startDrag(Offset initialPosition, Rect? iconBounds, Size tileSize) {
-    if (isDragging || draggedApp == null) return;
-    isDragging = true;
-    menuOverlayEntry?.remove();
-    menuOverlayEntry = null;
-    originalPosition = initialPosition;
-    setState(() {
-      dragPosition = initialPosition;
-    });
-    _dragOverlayWidget = DraggableIconOverlay(
-      key: _dragOverlayKey,
-      app: draggedApp!,
-      position: initialPosition,
-      iconBounds: iconBounds ?? Rect.fromLTRB(0, 0, 0, 0),
-      tileSize: tileSize,
-    );
-    dragOverlayEntry = OverlayEntry(builder: (context) => _dragOverlayWidget!);
-    Overlay.of(context).insert(dragOverlayEntry!);
-  }
-
-  void _updateDragPosition(Offset position, Size gridSize) {
-    if (!isDragging) return;
-    final cell = _getCellFromLocalPosition(position, gridSize);
-    setState(() {
-      dragPosition = position;
-      _dropTarget = cell;
-    });
-    _dragOverlayKey.currentState?.updatePosition(position);
-  }
-
-  void _endDrag(Offset dropPosition, Size gridSize) {
-    if (!isDragging || draggedApp == null) return;
-
-    final cell = _getCellFromLocalPosition(dropPosition, gridSize);
-    final toIndex = currentItems.indexWhere(
-          (item) => item.row == cell.x && item.col == cell.y,
-    );
-
-    if (toIndex != -1) {
-      final fromIndex = currentItems.indexWhere(
-            (item) => (item.app?.name == draggedApp!.name),
-      );
-      if (fromIndex != -1 && fromIndex != toIndex) {
-        final fromItem = currentItems[fromIndex];
-        final toItem = currentItems[toIndex];
-        setState(() {
-          currentItems[fromIndex] = ScreenItem(
-            app: toItem.app,
-            row: fromItem.row,
-            col: fromItem.col,
-          );
-          currentItems[toIndex] = ScreenItem(
-            app: fromItem.app,
-            row: cell.x,
-            col: cell.y,
-          );
-        });
-        widget.onReorder(currentItems);
-        _updateIconPositions(gridSize);
-      }
-    } else {
-      _cancelDrag();
-      return;
-    }
-    _cleanup();
-  }
-
-  void _cancelDrag() {
-    if (originalPosition == null) return;
-    setState(() {
-      dragPosition = originalPosition;
-    });
-    Future.delayed(const Duration(milliseconds: 200), _cleanup);
-  }
-
-  void _cleanup() {
-    _cleanupMenu();
-    dragOverlayEntry?.remove();
-    setState(() {
-      draggedApp = null;
-      dragPosition = null;
-      originalPosition = null;
-      isDragging = false;
-      _tappedApp = null;
-      _dropTarget = null;
-      dragOverlayEntry = null;
-    });
-  }
-
   void _cleanupMenu() {
     menuBarrierEntry?.remove();
     menuBarrierEntry = null;
@@ -273,6 +172,7 @@ class _AppGridState extends State<AppGrid> {
 
   @override
   Widget build(BuildContext context) {
+    final isDragging = widget.dragController.isDragging;
     return AnimatedScale(
       scale: isDragging ? 0.9 : 1,
       duration: const Duration(milliseconds: 150),
@@ -283,21 +183,39 @@ class _AppGridState extends State<AppGrid> {
           final tileWidth = gridSize.width / _numCols;
           final tileHeight = gridSize.height / _numRows;
           final fullSize = constraints.biggest;
-          _updateIconPositions(fullSize);
 
+          _updateIconPositions(fullSize);
+          final id = _numRows == 1 ? 'dock' : 'grid';
           return Listener(
             onPointerMove: (event) {
               final tileSize = Size(tileWidth, tileHeight);
               if (menuOverlayEntry != null && !isDragging) {
-                var iconPos = _getIconBoundsByPosition(event.position, gridSize);
-                _startDrag(event.position, iconPos, tileSize);
+                final iconPos = _getIconBoundsByPosition(event.position, gridSize);
+                final overlay = widget.dragController.startDrag(event.position, iconPos, tileSize);
+                if (overlay == null) return;
+                menuOverlayEntry?.remove();
+                menuOverlayEntry = null;
+                Overlay.of(context).insert(overlay);
+                setState(() {});
+
               } else if (isDragging) {
-                _updateDragPosition(event.position, gridSize);
+                final cell = _getCellFromLocalPosition(event.position, gridSize);
+                widget.dragController.updateDragPosition(event.position, cell);
+                setState(() {});
               }
             },
             onPointerUp: (event) {
               if (isDragging) {
-                _endDrag(event.position, gridSize);
+                final cell = _getCellFromLocalPosition(event.position, gridSize);
+                final change = widget.dragController.endDrag(event.position, currentItems, cell);
+                _cleanupMenu();
+                setState(() {
+                  _tappedApp = null;
+                });
+                if (change.needsSaving) {
+                  widget.onChange(change.items);
+                }
+                _updateIconPositions(gridSize);
               }
             },
             child: SizedBox.fromSize(
@@ -318,25 +236,29 @@ class _AppGridState extends State<AppGrid> {
     );
   }
 
+  Point<int> _getCellFromLocalPosition(Offset localPosition, Size gridSize) {
+    final col = (localPosition.dx / gridSize.width * _numCols).floor().clamp(0, _numCols - 1);
+    final row = (localPosition.dy / gridSize.height * _numRows).floor().clamp(0, _numRows - 1);
+    return Point(row, col);
+  }
+
   Widget _buildIcon(Application app, Size gridSize) {
     final position = _iconPositions[app.name];
     if (position == null) return const SizedBox();
 
-    if (app.name == draggedApp?.name && isDragging) {
+    if (widget.dragController.isDraggingApp(app)) {
       return const SizedBox();
     }
 
     // Compute tile size from grid
     final tileWidth = gridSize.width / _numCols;
     final tileHeight = gridSize.height / _numRows;
+    final highlightOffset = widget.showLabels ? tileHeight * 0.02 : tileHeight * 0.09;
 
     // Check if this icon is the drop target
     final item = currentItems.firstWhere((i) => (i.app != null && i.app!.name == app.name),
       orElse: () => throw StateError('App not found in grid'),
     );
-    final isDropTarget = _dropTarget != null &&
-        _dropTarget!.x == item.row &&
-        _dropTarget!.y == item.col;
     final iconBounds = withPadding(_getIconBoundsByApplication(app, gridSize), 4);
 
     return Positioned(
@@ -344,7 +266,7 @@ class _AppGridState extends State<AppGrid> {
       top: position.dy - tileHeight / 2,
       child: GestureDetector(
         onTapDown: (_) {
-          if (!isDragging && menuOverlayEntry == null) {
+          if (!widget.dragController.isDragging && menuOverlayEntry == null) {
             setState(() {
               _tappedApp = app;
               iconScale = 0.8;
@@ -369,6 +291,7 @@ class _AppGridState extends State<AppGrid> {
           setState(() {
             iconScale = 1.1;
           });
+          widget.dragController.draggedApp = app;
           _showContextMenu(app, details.globalPosition, gridSize);
         },
         onLongPressEnd: (details) {
@@ -383,10 +306,10 @@ class _AppGridState extends State<AppGrid> {
           child: Stack(
             children: [
               // Highlight (only icon area)
-              if (isDropTarget)
+              if (widget.dragController.isDropTarget(item))
                 Positioned(
                   left: iconBounds.left - (position.dx - tileWidth / 2),
-                  top: iconBounds.top - (position.dy - tileHeight / 2),
+                  top: iconBounds.top - (position.dy - tileHeight / 2) + highlightOffset,
                   child: Container(
                     width: iconBounds.width,
                     height: iconBounds.height,
@@ -405,7 +328,7 @@ class _AppGridState extends State<AppGrid> {
                   child: AppTile(
                     app: app,
                     tileSize: Size(tileWidth, tileHeight),
-                    showLabel: true,
+                    showLabel: widget.showLabels,
                   ),
                 ),
               ),

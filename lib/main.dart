@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:oxlauncher/model/model.dart';
 import 'package:oxlauncher/providers/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:oxlauncher/storage/launcher_storage.dart';
 import 'package:oxlauncher/widgets/app_grid.dart';
 import 'package:oxlauncher/widgets/dock.dart';
+
+import 'model/model.dart';
 
 void main() => runApp(const ProviderScope(child: OxygenLauncher()));
 
@@ -14,11 +15,14 @@ class OxygenLauncher extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final stateAsync = ref.watch(launcherStateProvider);
+    final dragController = ref.watch(dragControllerProvider);
 
     return MaterialApp(
       home: stateAsync.when(
         loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
         error: (err, xx) {
+          print(err);
+          print(xx);
           return Scaffold(body: Center(child: Text('Error: $err')));
         },
         data: (state) {
@@ -53,12 +57,12 @@ class OxygenLauncher extends ConsumerWidget {
                   ),
                   Column(
                     children: [
-                      // Grid: use currentScreen.items
+                      // Grid
                       Expanded(
                         child: AppGrid(
                           items: currentScreen.items,
-                          onReorder: (newItems) async {
-                            // Save to disk
+                          dragController: dragController,
+                          onChange: (newItems) async {
                             final updatedState = LauncherState(
                               screens: [LauncherScreen(items: newItems)],
                               dockItems: state.dockItems,
@@ -69,7 +73,18 @@ class OxygenLauncher extends ConsumerWidget {
                         ),
                       ),
                       // Dock
-                      Dock(dockItems: state.dockItems)
+                      Dock(
+                        items: state.dockItems,
+                        dragController: dragController,
+                        onChange: (newItems) async {
+                          final updatedState = LauncherState(
+                            screens: state.screens,
+                            dockItems: newItems,
+                          );
+                          await LauncherStorage.saveState(updatedState);
+                          ref.refresh(launcherStateProvider);
+                        },
+                      )
                     ],
                   ),
                 ],
